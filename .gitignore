@@ -1,0 +1,12 @@
+# Arquivos gerados automaticamente (não subir)
+monitor.log
+__pycache__/
+*.pyc
+.env
+
+# Ambiente virtual
+venv/
+.venv/
+
+# Streamlit local
+.streamlit/secrets.toml

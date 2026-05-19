@@ -1,0 +1,57 @@
+{
+  "hash": "8a56c9a1b3b0cae9d1e31fe8da0212cc20def9ffdaeaa434eb4c20a273843e04",
+  "structure": {
+    "title": "SMG15 - Contagem 2",
+    "description": "ATENÇÃO!\n1 - CONFIRME PRESENÇA SOMENTE 1 VEZ .\n2 - AGUARDAR A LIBERAÇÃO PARA ACESSAR A VAGA\nATENÇÃO! SE FOR SUA PRIMEIRA VEZ, POR FAVOR antes de iniciar o carregamento, procure um responsável para mais informações.\nPara carregar é necessário ter:\n- Colete \n- Luva\n- Bota de segurança com CA.\n- Ao entrar no Galpão para carregar, retire todos os adornos, farol baixo, pisca alerta ligado.\n- Ao estacionar o carro na vaga, desligue o alerta, chave no para-brisa, calço na roda traseira.",
+    "questions": [
+      {
+        "id": 1605076849,
+        "title": "NOME COMPLETO",
+        "type": 2,
+        "required": false,
+        "options": [
+          "Andre Luiz Dos Reis da Silva",
+          "Artur Fernandes Moraes",
+          "Bruno Belem Figueiredo",
+          "Cailane Eduarda Silverio Rodrigues",
+          "Caio Asaf Santos Diniz",
+          "Camilla Gabriella de Almeida Jardim",
+          "Carlos Vinicius Ponciano Drumond",
+          "Carlos Vitor Gomes Brum",
+          "Celia Marcia Oliveira Damasio",
+          "Crislaine Leontina Cardoso Ilidio",
+          "Daniela Cristina de Araujo Pinto",
+          "Denize Pereira Do Nascimento",
+          "Ednilson Silva Caldeira",
+          "Elton Dos Santos Alves",
+          "Eunice Lacerda Aguilar",
+          "Fabiane Baence Dos Santos Fonseca",
+          "Guilherme Augusto Goncalves",
+          "Guilherme Rodrigues Cosme",
+          "Ivan Rodrigues Dos Santos Junior",
+          "Jader Amaro de Lima",
+          "Jesse Rodrigues Pereira",
+          "Jhonny Sidney Silva Santos",
+          "Joao Jose Pereira Dos Santos",
+          "Joao Vitor de Oliveira Silva",
+          "Kevin Richard Silva Santos",
+          "Leandro Gabriel Alves Dos Santos",
+          "Leonardo Luiz da Silva Ribeiro",
+          "Lucas de Jesus Mendonca",
+          "Luiz Carlos Soares Dos Reis Junior",
+          "Marcus Felipe de Oliveira Neves",
+          "Matheus de Faria Moraes E Silva",
+          "Natalia de Oliveira Severo",
+          "Pamela Yara Mileib Teixeira",
+          "Sarah Jaqueline Costa Almeida",
+          "Tadeu Henrique Silva Goncalves",
+          "Thais Barbara de Oliveira",
+          "Vitor Breno de Melo",
+          "Wagner Lucas Batista Marciano",
+          "William Gomes Polansky Vieira"
+        ]
+      }
+    ],
+    "fetched_at": "2026-05-19T08:50:43.270512"
+  }
+}
