@@ -3,6 +3,7 @@
   "check_interval_seconds": 30,
   "state_file": "form_state.json",
   "log_file": "monitor.log",
+  "timezone_offset": -3,
   "email": {
     "enabled": false,
     "from": "seuemail@gmail.com",

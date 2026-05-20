@@ -19,7 +19,7 @@ import os
 import threading
 import winsound
 import ctypes
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -29,6 +29,16 @@ def load_config() -> dict:
     config_path = Path(__file__).parent / "config.json"
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def get_now() -> datetime:
+    """Retorna o datetime atual no fuso horário configurado."""
+    try:
+        cfg = load_config()
+        offset = cfg.get("timezone_offset", -3)
+    except Exception:
+        offset = -3
+    return datetime.now(timezone(timedelta(hours=offset)))
 
 # ─── Logging ───────────────────────────────────────────────
 def setup_logging(log_file: str) -> logging.Logger:
@@ -98,7 +108,7 @@ def fetch_form_structure(url: str) -> dict | None:
         "title":       title,
         "description": description,
         "questions":   questions,
-        "fetched_at":  datetime.now().isoformat(),
+        "fetched_at":  get_now().isoformat(),
     }
 
 
@@ -187,7 +197,7 @@ def notify_alert(title: str, changes: list[str]) -> None:
         message = (
             f"🚨 Alteração detectada em:\n{title}\n\n"
             f"{body}\n\n"
-            f"Detectado em: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}"
+            f"Detectado em: {get_now().strftime('%d/%m/%Y às %H:%M:%S')}"
         )
         ctypes.windll.user32.MessageBoxW(0, message, "⚠️ Google Forms Monitor", flags)
 
@@ -215,7 +225,7 @@ def send_email(cfg: dict, subject: str, body: str, logger: logging.Logger) -> bo
             <h2 style="color:#d9534f">🔔 Google Forms Monitor</h2>
             <p>{html_body}</p>
             <hr>
-            <small style="color:#999">Mensagem automática gerada em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</small>
+            <small style="color:#999">Mensagem automática gerada em {get_now().strftime('%d/%m/%Y %H:%M:%S')}</small>
         </body></html>"""
         msg.attach(MIMEText(html, "html", "utf-8"))
 
@@ -270,7 +280,7 @@ def run():
                     f"{new_structure['title']}\n"
                     f"URL: {url}\n\n"
                     + "\n\n".join(changes)
-                    + f"\n\nDetectado em: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}"
+                    + f"\n\nDetectado em: {get_now().strftime('%d/%m/%Y às %H:%M:%S')}"
                 )
                 for c in changes:
                     logger.warning(f"  → {c}")

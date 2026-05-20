@@ -11,7 +11,7 @@ from pathlib import Path
 from core import (
     load_config, fetch_form_structure, structure_hash,
     load_state, save_state, detect_changes,
-    load_changes_log, save_changes_log,
+    load_changes_log, save_changes_log, get_now,
 )
 
 # ─── Página ───────────────────────────────────────────────────
@@ -126,7 +126,7 @@ def do_check():
     st.session_state.last_error   = None
 
     result = fetch_form_structure(URL)
-    st.session_state.last_check  = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    st.session_state.last_check  = get_now().strftime("%d/%m/%Y %H:%M:%S")
     st.session_state.check_count += 1
 
     if result is None:
@@ -147,7 +147,7 @@ def do_check():
         st.session_state.new_alert     = True
         st.session_state.change_count += len(changes)
         save_changes_log({
-            "timestamp":  datetime.now().isoformat(),
+            "timestamp":  get_now().isoformat(),
             "form_title": result["title"],
             "changes":    changes,
         }, LOG_FILE)

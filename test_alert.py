@@ -3,7 +3,7 @@ import time
 import threading
 import winsound
 import ctypes
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 changes = [
     'Nova pergunta adicionada: "PLACA DO VEICULO"',
@@ -28,7 +28,7 @@ def _alert():
     message = (
         f"ALERTA: Alteracao detectada em:\n{title}\n\n"
         f"{body}\n\n"
-        f"Detectado em: {datetime.now().strftime('%d/%m/%Y as %H:%M:%S')}"
+        f"Detectado em: {datetime.now(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y as %H:%M:%S')}"
     )
     ctypes.windll.user32.MessageBoxW(0, message, "Google Forms Monitor", flags)
 

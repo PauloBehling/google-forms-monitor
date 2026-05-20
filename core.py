@@ -5,8 +5,19 @@ import urllib.request
 import re
 import json
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
+
+def get_now(config_path=None) -> datetime:
+    """Retorna o datetime atual no fuso horário configurado."""
+    try:
+        cfg = load_config(config_path)
+        offset = cfg.get("timezone_offset", -3)
+    except Exception:
+        offset = -3
+    return datetime.now(timezone(timedelta(hours=offset)))
+
 
 
 def load_config(config_path=None) -> dict:
@@ -53,7 +64,7 @@ def fetch_form_structure(url: str) -> dict | None:
         "title":       title,
         "description": description,
         "questions":   questions,
-        "fetched_at":  datetime.now().isoformat(),
+        "fetched_at":  get_now().isoformat(),
     }
 
 
