@@ -1,6 +1,6 @@
 {
   "form_url": "https://docs.google.com/forms/d/e/1FAIpQLSfZyDA_hs_U93AgK23_kQpKXsdcbNHePLmhm0lqjzavJGCS3g/viewform",
-  "check_interval_seconds": 120,
+  "check_interval_seconds": 30,
   "state_file": "form_state.json",
   "log_file": "monitor.log",
   "email": {
