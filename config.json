@@ -4,6 +4,8 @@
   "state_file": "form_state.json",
   "log_file": "monitor.log",
   "timezone_offset": -3,
+  "auto_submit_enabled": true,
+  "auto_submit_value": "Paulo Behling",
   "email": {
     "enabled": false,
     "from": "seuemail@gmail.com",

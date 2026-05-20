@@ -24,6 +24,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+from core import check_and_submit_form, save_changes_log
+
 # ─── Carregar configurações ────────────────────────────────
 def load_config() -> dict:
     config_path = Path(__file__).parent / "config.json"
@@ -274,6 +276,17 @@ def run():
                 # Mudança detectada!
                 changes = detect_changes(state["structure"], new_structure)
                 logger.warning(f"🚨 ALTERAÇÃO DETECTADA! {len(changes)} mudança(s) encontrada(s).")
+
+                # Verificar e submeter formulário se o valor alvo for recém-adicionado
+                submit_msg = check_and_submit_form(cfg, state["structure"], new_structure, logger)
+                if submit_msg:
+                    changes.append(submit_msg)
+
+                save_changes_log({
+                    "timestamp":  get_now().isoformat(),
+                    "form_title": new_structure["title"],
+                    "changes":    changes,
+                })
 
                 body = (
                     f"Alterações detectadas no formulário:\n"

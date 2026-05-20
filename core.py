@@ -2,6 +2,7 @@
 Funções compartilhadas: fetch, hash, estado e detecção de mudanças.
 """
 import urllib.request
+import urllib.parse
 import re
 import json
 import hashlib
@@ -149,3 +150,86 @@ def save_changes_log(entry: dict, log_file: str = CHANGES_LOG) -> None:
     log.insert(0, entry)
     with open(log_file, "w", encoding="utf-8") as f:
         json.dump(log, f, indent=2, ensure_ascii=False)
+
+
+def submit_google_form(form_url: str, entry_id: int | str, value: str) -> bool:
+    """Submete um formulário do Google com a resposta especificada."""
+    try:
+        response_url = form_url.replace("/viewform", "/formResponse")
+        data = {
+            f"entry.{entry_id}": value
+        }
+        encoded_data = urllib.parse.urlencode(data).encode("utf-8")
+        req = urllib.request.Request(
+            response_url,
+            data=encoded_data,
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            return response.status == 200 or response.code == 200
+    except Exception as e:
+        if hasattr(e, "code") and e.code in [200, 302]:
+            return True
+        return False
+
+
+def check_and_submit_form(cfg: dict, old_structure: dict | None, new_structure: dict, logger=None) -> str | None:
+    """
+    Verifica se a auto-submissão está habilitada e se o valor configurado
+    existe nas novas opções e NÃO existia nas opções anteriores (ou se é o primeiro carregamento).
+    Caso positivo, submete o formulário e retorna a mensagem de log correspondente.
+    """
+    if not cfg.get("auto_submit_enabled", False):
+        return None
+
+    target_value = cfg.get("auto_submit_value")
+    if not target_value:
+        return None
+
+    # Verificar se o valor de auto-submissão está presente nas novas opções
+    target_in_new = False
+    found_question = None
+    for q in new_structure.get("questions", []):
+        if target_value in q.get("options", []):
+            target_in_new = True
+            found_question = q
+            break
+
+    if not target_in_new:
+        if logger:
+            logger.info(f"Filtro de auto-submissão: '{target_value}' não encontrado nas opções do formulário.")
+        return None
+
+    # Verificar se o valor já estava presente na estrutura antiga
+    target_in_old = False
+    if old_structure:
+        for q in old_structure.get("questions", []):
+            if target_value in q.get("options", []):
+                target_in_old = True
+                break
+
+    # Se já existia e não é carregamento inicial, não submete novamente
+    if target_in_old:
+        if logger:
+            logger.info(f"Filtro de auto-submissão: '{target_value}' já constava nas opções anteriormente.")
+        return None
+
+    # Encontrou pela primeira vez! Submeter o formulário
+    form_url = cfg["form_url"]
+    entry_id = found_question["id"]
+
+    if logger:
+        logger.warning(f"🚀 '{target_value}' encontrado na pergunta '{found_question['title']}'! Submetendo formulário...")
+
+    success = submit_google_form(form_url, entry_id, target_value)
+
+    if success:
+        msg = f"⚡ Formulário submetido automaticamente para: {target_value} (Pergunta: {found_question['title']})"
+        if logger:
+            logger.warning(f"Sucesso: {msg}")
+        return msg
+    else:
+        msg = f"❌ Falha ao submeter formulário automaticamente para: {target_value}"
+        if logger:
+            logger.error(msg)
+        return msg

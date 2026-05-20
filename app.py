@@ -12,6 +12,7 @@ from core import (
     load_config, fetch_form_structure, structure_hash,
     load_state, save_state, detect_changes,
     load_changes_log, save_changes_log, get_now,
+    check_and_submit_form,
 )
 
 # ─── Página ───────────────────────────────────────────────────
@@ -143,6 +144,12 @@ def do_check():
         save_state(STATE_FILE, result, new_hash)
     elif state["hash"] != new_hash:
         changes = detect_changes(state["structure"], result)
+        
+        # Verificar e submeter formulário se o valor alvo for recém-adicionado
+        submit_msg = check_and_submit_form(cfg, state["structure"], result)
+        if submit_msg:
+            changes.append(submit_msg)
+
         st.session_state.last_changes  = changes
         st.session_state.new_alert     = True
         st.session_state.change_count += len(changes)
