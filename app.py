@@ -3,6 +3,7 @@ Dashboard Streamlit — Google Forms Monitor
 Executa: streamlit run app.py
 """
 import time
+import json
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
@@ -198,6 +199,42 @@ with st.sidebar:
     c1, c2 = st.columns(2)
     c1.metric("Verificações", st.session_state.check_count)
     c2.metric("Alterações",   st.session_state.change_count)
+
+    st.markdown("---")
+    with st.expander("⚙️ Ajustar Parâmetros", expanded=True):
+        new_interval = st.number_input(
+            "Intervalo (segundos)",
+            min_value=5,
+            max_value=3600,
+            value=int(INTERVAL),
+            step=5,
+            help="Tempo de espera entre cada consulta ao formulário."
+        )
+        new_auto_submit = st.checkbox(
+            "Habilitar Envio Automático",
+            value=cfg.get("auto_submit_enabled", False),
+            help="Ativa o preenchimento e envio automático do formulário se o nome for adicionado às opções."
+        )
+        new_submit_value = st.text_input(
+            "Nome para Envio",
+            value=cfg.get("auto_submit_value", ""),
+            placeholder="Ex: Paulo Behling",
+            help="O nome/valor que será selecionado e submetido."
+        )
+        if st.button("💾 Salvar Parâmetros", use_container_width=True):
+            cfg["check_interval_seconds"] = new_interval
+            cfg["auto_submit_enabled"] = new_auto_submit
+            cfg["auto_submit_value"] = new_submit_value
+            try:
+                config_path = Path(__file__).parent / "config.json"
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(cfg, f, indent=2, ensure_ascii=False)
+                st.success("Configurações salvas!")
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao salvar: {e}")
+
 
 # ─── Header ───────────────────────────────────────────────────
 st.markdown("# 🔍 Google Forms Monitor")
