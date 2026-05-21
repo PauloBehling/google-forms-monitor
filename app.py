@@ -13,7 +13,7 @@ from core import (
     load_config, fetch_form_structure, structure_hash,
     load_state, save_state, detect_changes,
     load_changes_log, save_changes_log, get_now,
-    check_and_submit_form,
+    check_and_submit_form, get_state_and_log_paths,
 )
 
 # ─── Página ───────────────────────────────────────────────────
@@ -100,8 +100,7 @@ except Exception as e:
     st.stop()
 
 URL        = cfg["form_url"]
-STATE_FILE = cfg.get("state_file", "form_state.json")
-LOG_FILE   = "changes_log.json"
+STATE_FILE, LOG_FILE, _, SUBMISSIONS_LOG_FILE = get_state_and_log_paths(cfg, URL)
 INTERVAL   = cfg.get("check_interval_seconds", 300)
 
 # ─── Beep via Web Audio API ───────────────────────────────────
@@ -147,7 +146,7 @@ def do_check():
         changes = detect_changes(state["structure"], result)
         
         # Verificar e submeter formulário se o valor alvo for recém-adicionado
-        submit_msg = check_and_submit_form(cfg, state["structure"], result)
+        submit_msg = check_and_submit_form(cfg, state["structure"], result, submissions_log=SUBMISSIONS_LOG_FILE)
         if submit_msg:
             changes.append(submit_msg)
 
@@ -171,8 +170,9 @@ with st.sidebar:
     st.markdown("## 🔍 Forms Monitor")
     st.markdown("---")
     st.markdown("**Formulário monitorado:**")
-    short_url = URL[36:70] + "..." if len(URL) > 70 else URL
-    st.code(short_url, language=None)
+    sidebar_state = load_state(STATE_FILE)
+    form_title = sidebar_state["structure"]["title"] if sidebar_state and "structure" in sidebar_state else "Aguardando verificação..."
+    st.markdown(f"<div style='color:#64ffda;font-weight:600;font-size:14px;background:#1a1f35;padding:12px;border-radius:10px;border:1px solid #2d3a5c;text-align:center;margin-bottom:12px;'>{form_title}</div>", unsafe_allow_html=True)
     st.markdown(f"**Intervalo:** `{INTERVAL}s`")
     st.markdown("---")
 
@@ -202,6 +202,18 @@ with st.sidebar:
 
     st.markdown("---")
     with st.expander("⚙️ Ajustar Parâmetros", expanded=True):
+        import os
+        env_active = bool(os.environ.get("FORM_URL") or os.environ.get("GOOGLE_FORM_URL"))
+        if env_active:
+            st.warning("⚠️ A URL está sendo sobrescrita por uma variável de ambiente (FORM_URL/GOOGLE_FORM_URL).")
+            
+        new_url = st.text_input(
+            "URL do Formulário",
+            value=cfg.get("form_url", ""),
+            placeholder="Ex: https://docs.google.com/forms/...",
+            disabled=env_active,
+            help="Link público do formulário do Google Forms a ser monitorado."
+        )
         new_interval = st.number_input(
             "Intervalo (segundos)",
             min_value=5,
@@ -213,18 +225,87 @@ with st.sidebar:
         new_auto_submit = st.checkbox(
             "Habilitar Envio Automático",
             value=cfg.get("auto_submit_enabled", False),
-            help="Ativa o preenchimento e envio automático do formulário se o nome for adicionado às opções."
+            help="Ativa o preenchimento e envio automático do formulário se qualquer um dos valores parametrizados for adicionado às opções."
         )
-        new_submit_value = st.text_input(
-            "Nome para Envio",
-            value=cfg.get("auto_submit_value", ""),
-            placeholder="Ex: Paulo Behling",
-            help="O nome/valor que será selecionado e submetido."
-        )
+        
+        # Campo para parametrização dos novos/outros campos do forms
+        st.markdown("---")
+        st.markdown("📝 **Parametrização dos Campos**")
+        state = load_state(STATE_FILE)
+        new_mappings = {}
+        if state and "structure" in state and "questions" in state["structure"]:
+            current_mappings = cfg.get("auto_submit_mappings", {})
+            for q in state["structure"]["questions"]:
+                q_title = q.get("title", "")
+                q_id = q.get("id")
+                q_val = current_mappings.get(q_title) or current_mappings.get(str(q_id), "")
+                
+                # Exibir um input de texto para cada pergunta cadastrada
+                new_mappings[q_title] = st.text_input(
+                    f"Resposta para '{q_title}'",
+                    value=q_val,
+                    key=f"map_{q_id}",
+                    help=f"Valor opcional para preencher o campo '{q_title}' na submissão automática."
+                )
+            # Botão para submissão manual forçada
+            st.markdown("---")
+            if st.button("🚀 Forçar Submissão Manual", use_container_width=True, help="Submete o formulário imediatamente com os valores preenchidos acima."):
+                # Recarregar config do disco para capturar edições manuais feitas no arquivo
+                try:
+                    fresh_cfg = load_config()
+                except Exception:
+                    fresh_cfg = cfg
+                    
+                active_mappings = fresh_cfg.get("auto_submit_mappings", {})
+                payload = {}
+                payload_details = {}
+                for q in state["structure"]["questions"]:
+                    q_title = q.get("title", "")
+                    q_id = q.get("id")
+                    
+                    # Apenas submete se o campo estiver configurado com um valor válido na configuração ativa
+                    cfg_val = active_mappings.get(q_title) or active_mappings.get(str(q_id))
+                    if cfg_val is not None and str(cfg_val).strip() != "":
+                        val = new_mappings.get(q_title)
+                        if val is not None and str(val).strip() != "":
+                            payload[f"entry.{q_id}"] = val
+                            payload_details[q_title] = val
+                
+                if not payload:
+                    st.warning("⚠️ Nenhum campo configurado e preenchido para submissão.")
+                else:
+                    with st.spinner("Enviando formulário..."):
+                        from core import submit_google_form
+                        success = submit_google_form(URL, payload)
+                    if success:
+                        st.success("⚡ Formulário submetido com sucesso!")
+                        from core import save_submissions_log
+                        save_submissions_log({
+                            "timestamp": get_now().isoformat(),
+                            "form_title": state["structure"].get("title", ""),
+                            "trigger": "Submissão manual via botão",
+                            "type": "Manual",
+                            "payload": payload_details
+                        }, SUBMISSIONS_LOG_FILE)
+                    else:
+                        st.error("❌ Falha ao submeter o formulário.")
+        else:
+            st.info("💡 A estrutura do formulário ainda não foi carregada. Salve a URL e clique em 'Verificar Agora' para habilitar a parametrização por campo.")
+
         if st.button("💾 Salvar Parâmetros", use_container_width=True):
+            if not env_active:
+                cfg["form_url"] = new_url
             cfg["check_interval_seconds"] = new_interval
             cfg["auto_submit_enabled"] = new_auto_submit
-            cfg["auto_submit_value"] = new_submit_value
+            cfg.pop("auto_submit_value", None)  # Remover campo obsoleto
+            
+            # Salvar apenas mapeamentos com valores não vazios
+            clean_mappings = {}
+            if new_mappings:
+                for k, v in new_mappings.items():
+                    if v is not None and str(v).strip() != "":
+                        clean_mappings[k] = v
+            cfg["auto_submit_mappings"] = clean_mappings
             try:
                 config_path = Path(__file__).parent / "config.json"
                 with open(config_path, "w", encoding="utf-8") as f:
@@ -262,7 +343,7 @@ if state is None:
     st.info("⚡ Aguardando a primeira verificação. Clique em **Verificar Agora** na barra lateral.")
 else:
     s = state["structure"]
-    tab1, tab2 = st.tabs(["📋 Estrutura Atual", "📜 Histórico de Alterações"])
+    tab1, tab2, tab3 = st.tabs(["📋 Estrutura Atual", "📜 Histórico de Alterações", "🚀 Envios Realizados"])
 
     # ── Aba 1: Estrutura ──────────────────────────────────────
     with tab1:
@@ -317,6 +398,30 @@ else:
                     f'{chgs_html}</div>',
                     unsafe_allow_html=True,
                 )
+
+    # ── Aba 3: Envios Realizados ────────────────────────────────
+    with tab3:
+        from core import load_submissions_log
+        sub_log = load_submissions_log(SUBMISSIONS_LOG_FILE)
+        if not sub_log:
+            st.info("🟢 Nenhum envio de dados registrado até o momento.")
+        else:
+            st.markdown(f"**{len(sub_log)} envio(s) realizado(s):**")
+            for entry in sub_log:
+                ts = entry.get("timestamp", "")[:16].replace("T", " ")
+                trigger = entry.get("trigger", "")
+                stype = entry.get("type", "Automático")
+                badge = "⚡ Automático" if stype == "Automático" else "👤 Manual"
+                
+                # Exibir com visual elegante de expansor
+                with st.expander(f"🕐 {ts} &nbsp;|&nbsp; {badge} &nbsp;|&nbsp; {trigger}", expanded=False):
+                    payload = entry.get("payload", {})
+                    if payload:
+                        for k, v in payload.items():
+                            st.markdown(f"**{k}**: `{v}`")
+                    else:
+                        st.info("Nenhum dado imputado.")
+
 
 # ─── Auto-rerun a cada 1s para countdown ─────────────────────
 time.sleep(1)

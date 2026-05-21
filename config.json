@@ -5,7 +5,6 @@
   "log_file": "monitor.log",
   "timezone_offset": -3,
   "auto_submit_enabled": true,
-  "auto_submit_value": "Paulo Behling",
   "email": {
     "enabled": false,
     "from": "seuemail@gmail.com",
@@ -16,5 +15,8 @@
     "smtp_port": 587,
     "smtp_user": "seuemail@gmail.com",
     "smtp_password": "SUA_SENHA_DE_APP_AQUI"
+  },
+  "auto_submit_mappings": {
+    "NOME COMPLETO": "Wagner Lucas Batista Marciano"
   }
 }

@@ -25,7 +25,47 @@ def load_config(config_path=None) -> dict:
     if config_path is None:
         config_path = Path(__file__).parent / "config.json"
     with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        cfg = json.load(f)
+    
+    import os
+    env_url = os.environ.get("FORM_URL") or os.environ.get("GOOGLE_FORM_URL")
+    if env_url:
+        cfg["form_url"] = env_url
+    return cfg
+
+
+def get_state_and_log_paths(cfg: dict, custom_url: str = None) -> tuple[str, str, str, str]:
+    """
+    Retorna os caminhos para: (state_file, changes_log_file, monitor_log_file, submissions_log_file)
+    Se custom_url for diferente da URL padrão em config.json, adiciona um hash ao nome do arquivo
+    para evitar colisões no monitoramento de múltiplos formulários.
+    """
+    default_url = cfg.get("form_url", "")
+    url = custom_url if custom_url else default_url
+    
+    state_file = cfg.get("state_file", "form_state.json")
+    changes_log = "changes_log.json"
+    monitor_log = cfg.get("log_file", "monitor.log")
+    submissions_log = "submissions_log.json"
+    
+    # Se custom_url for fornecido e for diferente do padrão, adiciona hash
+    if url and url != default_url:
+        h = hashlib.md5(url.encode("utf-8")).hexdigest()[:8]
+        
+        p_state = Path(state_file)
+        state_file = str(p_state.with_name(f"{p_state.stem}_{h}{p_state.suffix}"))
+        
+        p_changes = Path(changes_log)
+        changes_log = str(p_changes.with_name(f"{p_changes.stem}_{h}{p_changes.suffix}"))
+        
+        p_monitor = Path(monitor_log)
+        monitor_log = str(p_monitor.with_name(f"{p_monitor.stem}_{h}{p_monitor.suffix}"))
+        
+        p_submissions = Path(submissions_log)
+        submissions_log = str(p_submissions.with_name(f"{p_submissions.stem}_{h}{p_submissions.suffix}"))
+        
+    return state_file, changes_log, monitor_log, submissions_log
+
 
 
 def fetch_form_structure(url: str) -> dict | None:
@@ -152,14 +192,11 @@ def save_changes_log(entry: dict, log_file: str = CHANGES_LOG) -> None:
         json.dump(log, f, indent=2, ensure_ascii=False)
 
 
-def submit_google_form(form_url: str, entry_id: int | str, value: str) -> bool:
-    """Submete um formulário do Google com a resposta especificada."""
+def submit_google_form(form_url: str, payload: dict) -> bool:
+    """Submete um formulário do Google com o payload de respostas especificado."""
     try:
         response_url = form_url.replace("/viewform", "/formResponse")
-        data = {
-            f"entry.{entry_id}": value
-        }
-        encoded_data = urllib.parse.urlencode(data).encode("utf-8")
+        encoded_data = urllib.parse.urlencode(payload).encode("utf-8")
         req = urllib.request.Request(
             response_url,
             data=encoded_data,
@@ -173,63 +210,117 @@ def submit_google_form(form_url: str, entry_id: int | str, value: str) -> bool:
         return False
 
 
-def check_and_submit_form(cfg: dict, old_structure: dict | None, new_structure: dict, logger=None) -> str | None:
+def load_submissions_log(log_file: str = "submissions_log.json") -> list:
+    """Carrega o histórico de submissões de formulários."""
+    p = Path(log_file)
+    if p.exists():
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_submissions_log(entry: dict, log_file: str = "submissions_log.json") -> None:
+    """Registra uma nova submissão no arquivo JSON de histórico."""
+    log = load_submissions_log(log_file)
+    log.insert(0, entry)
+    try:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file, "w", encoding="utf-8") as f:
+            json.dump(log, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def check_and_submit_form(cfg: dict, old_structure: dict | None, new_structure: dict, logger=None, submissions_log: str = "submissions_log.json") -> str | None:
     """
-    Verifica se a auto-submissão está habilitada e se o valor configurado
-    existe nas novas opções e NÃO existia nas opções anteriores (ou se é o primeiro carregamento).
-    Caso positivo, submete o formulário e retorna a mensagem de log correspondente.
+    Verifica se a auto-submissão está habilitada e se algum dos valores configurados em 
+    auto_submit_mappings é recém-adicionado como opção nas perguntas do formulário.
+    Caso positivo, realiza a submissão com todos os campos mapeados.
     """
     if not cfg.get("auto_submit_enabled", False):
         return None
 
-    target_value = cfg.get("auto_submit_value")
-    if not target_value:
+    mappings = cfg.get("auto_submit_mappings", {})
+    if not mappings:
         return None
 
-    # Verificar se o valor de auto-submissão está presente nas novas opções
-    target_in_new = False
-    found_question = None
+    # Encontrar se algum valor mapeado foi recém-adicionado nas opções de alguma pergunta
+    trigger_found = False
+    trigger_question = None
+    trigger_value = None
+
     for q in new_structure.get("questions", []):
-        if target_value in q.get("options", []):
-            target_in_new = True
-            found_question = q
-            break
-
-    if not target_in_new:
-        if logger:
-            logger.info(f"Filtro de auto-submissão: '{target_value}' não encontrado nas opções do formulário.")
-        return None
-
-    # Verificar se o valor já estava presente na estrutura antiga
-    target_in_old = False
-    if old_structure:
-        for q in old_structure.get("questions", []):
-            if target_value in q.get("options", []):
-                target_in_old = True
+        q_title = q.get("title", "")
+        q_id = q.get("id")
+        
+        # Buscar se há um valor mapeado para esta pergunta
+        target_value = mappings.get(q_title) or mappings.get(str(q_id))
+        if not target_value:
+            continue
+            
+        # Se a pergunta tiver opções, verificar se o valor mapeado está presente nelas
+        options = q.get("options", [])
+        if target_value in options:
+            # Verificar se já estava na estrutura antiga
+            already_in_old = False
+            if old_structure:
+                for old_q in old_structure.get("questions", []):
+                    # Localizar a mesma pergunta por ID ou título
+                    if old_q.get("id") == q_id or old_q.get("title") == q_title:
+                        if target_value in old_q.get("options", []):
+                            already_in_old = True
+                            break
+            
+            # Se é a primeira vez que o valor mapeado aparece nas opções desta pergunta!
+            if not already_in_old:
+                trigger_found = True
+                trigger_question = q
+                trigger_value = target_value
                 break
 
-    # Se já existia e não é carregamento inicial, não submete novamente
-    if target_in_old:
+    if not trigger_found:
         if logger:
-            logger.info(f"Filtro de auto-submissão: '{target_value}' já constava nas opções anteriormente.")
+            logger.info("Filtro de auto-submissão: nenhum valor mapeado foi adicionado recentemente como opção.")
         return None
 
-    # Encontrou pela primeira vez! Submeter o formulário
+    # Montar o payload de submissão e os detalhes do payload amigável
     form_url = cfg["form_url"]
-    entry_id = found_question["id"]
+    payload = {}
+    payload_details = {}
+    
+    for q in new_structure.get("questions", []):
+        q_title = q.get("title", "")
+        q_id = q.get("id")
+        val = mappings.get(q_title) or mappings.get(str(q_id))
+        if val is not None and val != "":
+            payload[f"entry.{q_id}"] = val
+            payload_details[q_title] = val
 
     if logger:
-        logger.warning(f"🚀 '{target_value}' encontrado na pergunta '{found_question['title']}'! Submetendo formulário...")
+        logger.warning(f"🚀 '{trigger_value}' detectado no campo '{trigger_question['title']}'! Submetendo formulário com {len(payload)} campo(s)...")
 
-    success = submit_google_form(form_url, entry_id, target_value)
+    success = submit_google_form(form_url, payload)
 
     if success:
-        msg = f"⚡ Formulário submetido automaticamente para: {target_value} (Pergunta: {found_question['title']})"
+        msg = f"⚡ Formulário submetido automaticamente. Disparado por: '{trigger_value}' no campo '{trigger_question['title']}'"
         if logger:
             logger.warning(f"Sucesso: {msg}")
+            
+        # Salva o envio no log JSON de submissões
+        save_submissions_log({
+            "timestamp": get_now().isoformat(),
+            "form_title": new_structure.get("title", ""),
+            "trigger": f"Opção '{trigger_value}' adicionada no campo '{trigger_question['title']}'",
+            "type": "Automático",
+            "payload": payload_details
+        }, submissions_log)
+        
         return msg
     else:
-        msg = f"❌ Falha ao submeter formulário automaticamente para: {target_value}"
+        msg = f"❌ Falha ao submeter formulário automaticamente para o disparo de: '{trigger_value}'"
         if logger:
             logger.error(msg)
         return msg

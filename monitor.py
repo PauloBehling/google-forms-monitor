@@ -24,28 +24,17 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
-from core import check_and_submit_form, save_changes_log
+from core import (
+    check_and_submit_form, save_changes_log,
+    load_config, get_now, get_state_and_log_paths
+)
 
-# ─── Carregar configurações ────────────────────────────────
-def load_config() -> dict:
-    config_path = Path(__file__).parent / "config.json"
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def get_now() -> datetime:
-    """Retorna o datetime atual no fuso horário configurado."""
-    try:
-        cfg = load_config()
-        offset = cfg.get("timezone_offset", -3)
-    except Exception:
-        offset = -3
-    return datetime.now(timezone(timedelta(hours=offset)))
 
 # ─── Logging ───────────────────────────────────────────────
 def setup_logging(log_file: str) -> logging.Logger:
     logger = logging.getLogger("forms_monitor")
     logger.setLevel(logging.INFO)
+    logger.handlers.clear()
     fmt = logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s",
                             datefmt="%Y-%m-%d %H:%M:%S")
     # Console com encoding UTF-8 (corrige acentos no Windows)
@@ -243,17 +232,35 @@ def send_email(cfg: dict, subject: str, body: str, logger: logging.Logger) -> bo
         return False
 
 # ─── Loop principal ────────────────────────────────────────
-def run():
-    cfg        = load_config()
-    logger     = setup_logging(cfg.get("log_file", "monitor.log"))
-    url        = cfg["form_url"]
-    state_file = cfg.get("state_file", "form_state.json")
-    interval   = cfg.get("check_interval_seconds", 300)
+def run(args=None):
+    config_path = args.config if (args and args.config) else None
+    cfg = load_config(config_path)
+
+    # 1. Resolver URL com ordem de precedência: CLI Argument > CLI Flag > Env Var > config.json
+    url = cfg.get("form_url")
+    if args:
+        if args.url_flag:
+            url = args.url_flag
+        elif args.url:
+            url = args.url
+
+    # 2. Obter caminhos de estado/logs isolados usando a URL resolvida
+    state_file, changes_log, monitor_log, submissions_log = get_state_and_log_paths(cfg, url)
+
+    # 3. Configurar logger usando o arquivo de log correto
+    logger = setup_logging(monitor_log)
+
+    # 4. Resolver Intervalo: CLI > config.json
+    interval = cfg.get("check_interval_seconds", 300)
+    if args and args.interval:
+        interval = args.interval
 
     logger.info("=" * 55)
     logger.info("  Google Forms Monitor iniciado")
     logger.info(f"  URL: {url}")
     logger.info(f"  Intervalo de verificação: {interval}s")
+    logger.info(f"  Estado persistido em: {state_file}")
+    logger.info(f"  Log de mudanças em: {changes_log}")
     logger.info("=" * 55)
 
     while True:
@@ -278,22 +285,22 @@ def run():
                 logger.warning(f"🚨 ALTERAÇÃO DETECTADA! {len(changes)} mudança(s) encontrada(s).")
 
                 # Verificar e submeter formulário se o valor alvo for recém-adicionado
-                submit_msg = check_and_submit_form(cfg, state["structure"], new_structure, logger)
+                submit_msg = check_and_submit_form(cfg, state["structure"], new_structure, logger, submissions_log)
                 if submit_msg:
                     changes.append(submit_msg)
 
                 save_changes_log({
-                    "timestamp":  get_now().isoformat(),
+                    "timestamp":  get_now(config_path).isoformat(),
                     "form_title": new_structure["title"],
                     "changes":    changes,
-                })
+                }, changes_log)
 
                 body = (
                     f"Alterações detectadas no formulário:\n"
                     f"{new_structure['title']}\n"
                     f"URL: {url}\n\n"
                     + "\n\n".join(changes)
-                    + f"\n\nDetectado em: {get_now().strftime('%d/%m/%Y às %H:%M:%S')}"
+                    + f"\n\nDetectado em: {get_now(config_path).strftime('%d/%m/%Y às %H:%M:%S')}"
                 )
                 for c in changes:
                     logger.warning(f"  → {c}")
@@ -309,4 +316,12 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    import argparse
+    parser = argparse.ArgumentParser(description="Google Forms Monitor — Monitoramento de Alterações")
+    parser.add_argument("url", nargs="?", help="URL do Google Forms para monitorar (sobrescreve a config)")
+    parser.add_argument("--url", dest="url_flag", help="URL do Google Forms para monitorar (sobrescreve a config)")
+    parser.add_argument("-i", "--interval", type=int, help="Intervalo de verificação em segundos (sobrescreve a config)")
+    parser.add_argument("-c", "--config", help="Caminho personalizado para o arquivo config.json")
+    
+    args = parser.parse_args()
+    run(args)

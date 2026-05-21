@@ -1,0 +1,73 @@
+[
+  {
+    "timestamp": "2026-05-21T16:08:03.843783-03:00",
+    "form_title": "SMG15 - Contagem 2",
+    "trigger": "Submissão manual via botão",
+    "type": "Manual",
+    "payload": {
+      "NOME COMPLETO": "Wagner Lucas Batista Marciano"
+    }
+  },
+  {
+    "timestamp": "2026-05-21T16:03:42.756923-03:00",
+    "form_title": "SMG15 - Contagem 2",
+    "trigger": "Submissão manual via botão",
+    "type": "Manual",
+    "payload": {
+      "NOME COMPLETO": "Wagner Lucas Batista Marciano"
+    }
+  },
+  {
+    "timestamp": "2026-05-21T16:01:35.359986-03:00",
+    "form_title": "TESTE APP",
+    "trigger": "Submissão manual via botão",
+    "type": "Manual",
+    "payload": {
+      "null": "Paulo Teste",
+      "Sua Placa:": "RUC3C62",
+      "Já efetuou Entregas:": "Sim"
+    }
+  },
+  {
+    "timestamp": "2026-05-21T15:49:28.173416-03:00",
+    "form_title": "TESTE APP",
+    "trigger": "Submissão manual via botão",
+    "type": "Manual",
+    "payload": {
+      "null": "Teste",
+      "Sua Placa:": "RUC3C62",
+      "Já efetuou Entregas:": "Sim"
+    }
+  },
+  {
+    "timestamp": "2026-05-21T15:47:40.240900-03:00",
+    "form_title": "TESTE APP",
+    "trigger": "Submissão manual via botão",
+    "type": "Manual",
+    "payload": {
+      "null": "Teste",
+      "Sua Placa:": "RUC3C62",
+      "Já efetuou Entregas:": "Sim"
+    }
+  },
+  {
+    "timestamp": "2026-05-21T15:32:32.206078-03:00",
+    "form_title": "SMG15 - Contagem 2",
+    "trigger": "Submissão manual via botão",
+    "type": "Manual",
+    "payload": {
+      "NOME COMPLETO": "Kevyn Fernando Antoima Bolivar"
+    }
+  },
+  {
+    "timestamp": "2026-05-21T15:31:30.617770-03:00",
+    "form_title": "Formulário de Teste",
+    "trigger": "Opção 'Paulo Behling' adicionada no campo 'Nome Completo'",
+    "type": "Automático",
+    "payload": {
+      "Nome Completo": "Paulo Behling",
+      "Turma": "TURMA A",
+      "Placa": "RUC3C62"
+    }
+  }
+]
