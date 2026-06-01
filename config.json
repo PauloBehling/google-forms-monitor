@@ -1,6 +1,6 @@
 {
   "form_url": "https://docs.google.com/forms/d/e/1FAIpQLSfZyDA_hs_U93AgK23_kQpKXsdcbNHePLmhm0lqjzavJGCS3g/viewform",
-  "check_interval_seconds": 30,
+  "check_interval_seconds": 10,
   "state_file": "form_state.json",
   "log_file": "monitor.log",
   "timezone_offset": -3,
@@ -17,6 +17,6 @@
     "smtp_password": "SUA_SENHA_DE_APP_AQUI"
   },
   "auto_submit_mappings": {
-    "NOME COMPLETO": "Wagner Lucas Batista Marciano"
+    "NOME COMPLETO": "Paulo Behling"
   }
 }
